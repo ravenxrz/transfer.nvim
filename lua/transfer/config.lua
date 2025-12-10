@@ -4,22 +4,49 @@ M.defaults = {
   -- deployment config template: can be a string, a function or a table of lines
   config_template = [[
 return {
-  ["server1"] = {
-    host = "server1",
+  ["wuli38"] = {
+    host = "wuli38",
     mappings = {
       {
-        ["local"] = "domains/example.com",
-        ["remote"] = "/var/www/example.com",
+        ["local"] = ".",
+        ["remote"] = "/data04/zhangxingrui/Projects/pagestore",
       },
     },
-    -- excludedPaths = {
-    --   "src", -- local path relative to project root
-    -- },
+    excludedPaths = {
+      "build", -- local path relative to project root
+    },
+    auto_download = {
+      enable = true,
+      interval = 60, -- in seconds
+      mappings = {
+        --
+        -- 如果是目录，末尾添加/
+        --
+        {
+          ["local"] = "build/src/pagestore/proto/",
+          ["remote"] = "/data04/zhangxingrui/Projects/pagestore/build/src/pagestore/proto/pst_proto/",
+        },
+        {
+          ["local"] = "build/src/pagestore/qos/proto/",
+          ["remote"] = "/data04/zhangxingrui/Projects/pagestore/build/src/pagestore/qos/proto/",
+        },
+        {
+          ["local"] = "build/src/pagestore/server/delta_db/proto/",
+          ["remote"] = "/data04/zhangxingrui/Projects/pagestore/build/src/pagestore/server/delta_db/proto/",
+        },
+        {
+          ["local"] = "build/compile_commands.json.tmp",
+          ["remote"] = "/data04/zhangxingrui/Projects/pagestore/build/compile_commands.json",
+          post_hook = "sed -i '' 's|/data04/zhangxingrui/Projects/pagestore|/Users/leo/Projects/pagestore|g' /Users/leo/Projects/pagestore/build/compile_commands.json.tmp; cp -f /Users/leo/Projects/pagestore/build/compile_commands.json.tmp /Users/leo/Projects/pagestore/build/compile_commands.json"
+        },
+      },
+    },
   },
 }
+
 ]],
   close_diffview_mapping = "<leader>b", -- buffer related mapping to close diffview, set to nil to disable mapping
-  upload_rsync_params = { -- a table of strings or functions
+  upload_rsync_params = {               -- a table of strings or functions
     "-rlzi",
     "--delete",
     "--checksum",
@@ -35,13 +62,18 @@ return {
     "*.pyc",
   },
   download_rsync_params = { -- a table of strings or functions
-    "-rlzi",
+    "-rz",
     "--delete",
     "--checksum",
     "--exclude",
     ".git",
     "--exclude",
     ".nvim",
+  },
+  auto_download = {
+    enable = false,
+    interval = 300, -- in seconds
+    mappings = {},
   },
 }
 

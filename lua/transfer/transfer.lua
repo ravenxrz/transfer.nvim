@@ -633,4 +633,106 @@ function M.show_dir_diff(dir)
   end)
 end
 
+-- periodically download files from remote server
+function M.start_auto_download()
+  local cwd = vim.loop.cwd()
+  local config_file = cwd .. "/.nvim/deployment.lua"
+  if vim.fn.filereadable(config_file) ~= 1 then
+    return
+  end
+
+  local deployment_conf = dofile(config_file)
+  for _, deployment in pairs(deployment_conf) do
+    if deployment.auto_download and deployment.auto_download.enable then
+      local interval = deployment.auto_download.interval or 300
+      local mappings = deployment.auto_download.mappings or {}
+      if #mappings == 0 then
+        goto continue
+      end
+
+      local function run_syncs_sequentially(mappings_to_process)
+        if not mappings_to_process or #mappings_to_process == 0 then
+          return
+        end
+
+        local mapping = table.remove(mappings_to_process, 1) -- Get and remove the first mapping
+
+        local remote_path = mapping["remote"]
+        local local_path = mapping["local"]
+        local post_hook = mapping["post_hook"]
+
+        if not (remote_path and local_path) then
+          -- if invalid mapping, skip to the next one
+          vim.schedule(function()
+            run_syncs_sequentially(mappings_to_process)
+          end)
+          return
+        end
+
+        remote_path = vim.trim(remote_path)
+        local_path = vim.trim(local_path)
+
+        -- Ensure local directory exists
+        local local_dir = vim.fn.fnamemodify(local_path, ":h")
+        if vim.fn.isdirectory(local_dir) == 0 then
+          pcall(vim.fn.mkdir, local_dir, "p")
+        end
+
+        local remote_rsync_path
+        if deployment.username then
+          remote_rsync_path = deployment.username .. "@" .. deployment.host .. ":" .. remote_path
+        else
+          remote_rsync_path = deployment.host .. ":" .. remote_path
+        end
+
+        local cmd = { "rsync" }
+        vim.list_extend(cmd, expand_variables(config.options.download_rsync_params))
+        vim.list_extend(cmd, { remote_rsync_path, local_path })
+
+        build_command(deployment, cmd, function(command)
+          if not command then
+            -- if build_command fails (e.g. no password), go to next
+            vim.schedule(function()
+              run_syncs_sequentially(mappings_to_process)
+            end)
+            return
+          end
+
+          vim.schedule(function()
+            vim.fn.jobstart(command, {
+              on_exit = function(_, code, _)
+                if code == 0 then
+                  if post_hook then
+                    vim.schedule(function()
+                      vim.fn.jobstart(post_hook, { shell = true })
+                    end)
+                  end
+                else
+                  print("Auto download failed for " .. remote_path .. ". Command: " .. table.concat(command, " "))
+                end
+                -- Whether it succeeds or fails, run the next sync in the chain
+                vim.schedule(function()
+                  run_syncs_sequentially(mappings_to_process)
+                end)
+              end,
+            })
+          end)
+        end)
+      end
+
+      local timer = vim.loop.new_timer()
+      timer:start(0, interval * 1000, function()
+        -- Create a shallow copy of the mappings table to avoid modifying the original
+        local mappings_copy = {}
+        for _, m in ipairs(mappings) do
+          table.insert(mappings_copy, m)
+        end
+        run_syncs_sequentially(mappings_copy)
+      end)
+
+      ::continue::
+    end
+  end
+end
+
 return M

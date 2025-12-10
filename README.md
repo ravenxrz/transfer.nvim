@@ -60,6 +60,31 @@ return {
 }
 ```
 
+### Auto Download
+
+You can also configure automatic downloads from the remote server.
+
+```lua
+-- .nvim/deployment.lua
+return {
+  ["example_name"] = {
+    host = "myhost",
+    -- ...
+    auto_download = {
+      enable = true,
+      interval = 300, -- in seconds
+      mappings = {
+        {
+          ["local"] = "local/path",
+          ["remote"] = "/remote/path",
+          post_hook = "echo 'Downloaded'", -- optional command to run after download
+        },
+      },
+    },
+  },
+}
+```
+
 Example `~/.ssh/config` for passwordless auth:
 
 ```ssh
