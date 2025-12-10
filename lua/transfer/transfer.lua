@@ -3,6 +3,20 @@ local config = require("transfer.config")
 local M = {}
 
 M._saving = {}
+M.timers = {}
+
+vim.api.nvim_create_autocmd("VimLeavePre", {
+  pattern = "*",
+  callback = function()
+    if M.timers then
+      for _, timer in ipairs(M.timers) do
+        timer:stop()
+        timer:close()
+      end
+      M.timers = {}
+    end
+  end,
+})
 
 -- reloads the buffer after a transfer
 -- refreshes the neo-tree if the buffer is a neo-tree
@@ -721,6 +735,7 @@ function M.start_auto_download()
       end
 
       local timer = vim.loop.new_timer()
+      table.insert(M.timers, timer)
       timer:start(0, interval * 1000, function()
         -- Create a shallow copy of the mappings table to avoid modifying the original
         local mappings_copy = {}
