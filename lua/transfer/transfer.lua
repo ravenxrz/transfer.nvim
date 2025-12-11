@@ -361,6 +361,7 @@ function M.upload_file(local_path, callback)
             replace = notification_id,
           })
         else
+          table.insert(stderr, 1, "Command: " .. table.concat(command, " "))
           vim.notify(table.concat(stderr, "\n"), vim.log.levels.ERROR, {
             id = notification_id,
             title = "Error uploading file",

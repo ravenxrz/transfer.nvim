@@ -2,6 +2,43 @@ local M = {}
 
 M.recent_command = nil
 
+local function get_git_diff_files()
+  if vim.fn.executable("git") ~= 1 then
+    return {}
+  end
+
+  local files_set = {}
+
+  local function add_cmd(cmd)
+    local result = vim.fn.systemlist(cmd)
+    if vim.v.shell_error ~= 0 then
+      return
+    end
+    for _, f in ipairs(result) do
+      if f ~= nil and f ~= "" then
+        files_set[f] = true
+      end
+    end
+  end
+
+  -- 工作区修改（未暂存）
+  add_cmd("git diff --name-only")
+  -- 已暂存的修改
+  add_cmd("git diff --name-only --cached")
+  -- 未跟踪的新文件
+  add_cmd("git ls-files --others --exclude-standard")
+
+  local files = {}
+  for f, _ in pairs(files_set) do
+    if vim.fn.filereadable(f) == 1 then
+      table.insert(files, f)
+    end
+  end
+
+  table.sort(files)
+  return files
+end
+
 local function create_autocmd()
   local augroup = vim.api.nvim_create_augroup("TransferNvim", { clear = true })
   vim.api.nvim_create_autocmd("DirChanged", {
@@ -144,6 +181,34 @@ M.setup = function()
     M.recent_command = "TransferDirDiff " .. path
     require("transfer.transfer").show_dir_diff(path)
   end, { nargs = "?" })
+
+  -- TransferUploadGitDiff - upload all files changed according to git diff
+  vim.api.nvim_create_user_command("TransferUploadGitDiff", function()
+    local files = get_git_diff_files()
+    if #files == 0 then
+      vim.notify("No changed files found for git diff", vim.log.levels.INFO, {
+        title = "Transfer.nvim",
+        icon = "",
+      })
+      return
+    end
+
+    M.recent_command = "TransferUploadGitDiff"
+
+    local transfer = require("transfer.transfer")
+
+    local function upload_next(idx)
+      local path = files[idx]
+      if not path then
+        return
+      end
+      transfer.upload_file(path, function()
+        upload_next(idx + 1)
+      end)
+    end
+
+    upload_next(1)
+  end, { nargs = 0 })
 end
 
 return M
